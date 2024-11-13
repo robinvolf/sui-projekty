@@ -31,6 +31,14 @@ class Tensor:
 
             raise NotImplementedError('Backpropagation without deltas not implemented yet')
 
+# Jak na to?
+# Každá operace vrátí nový Tenzor, který budu výsledkem operace
+# Tento nový tenzor bude mít nastavený atribut back_op, abychom pak byli schopni se vracet ve výpočetním grafu a šířit zpětně chybu (metoda backward()).
+#
+# Jsme už tak low-level, že se na to dívám jako na výpočetní graf a ne jako na neuronku. To za mě řeší ve funkcích ze zadání.
+#
+# Otázky:
+# - Je gradient pouze přejatý od následující vrstvy nebo potřebuju i ty minulé, abych ho spočítal?
 
 def sui_sum(tensor):
     raise NotImplementedError()
