@@ -1,9 +1,8 @@
 #include "search-interface.h"
 #include "search-strategies.h"
+#include "memusage.h"
 #include <cstdint>
 #include <deque>
-#include <functional>
-#include <set>
 #include <unordered_set>
 #include <iostream>
 #include <optional>
@@ -61,22 +60,35 @@ bool operator==(const SearchState &a, const SearchState &b) {
 	return a.state_ == b.state_;
 }
 
+// Constructs a vector of actions from initial state to final state using the final state and explored nodes.
+// Looks through 
 std::vector<SearchAction> construct_solution(
 	SearchNode& final_state,
 	std::unordered_set<SearchNode, SearchNodeHasher>& explored
 ) {
-	SearchNode* current = &final_state;
+	const SearchNode* current = &final_state;
 	std::vector<SearchAction> actions;
 
 	// Traverse the backtree to initial state, collect actions along the way
 	while(current->prev.has_value()) {
 		actions.push_back(current->action.value()); // SAFETY: Action has value <=> action has previous, we checked previous, this is safe
 
+		bool found = false;
+
 		// Now we have to find the parent state
-		for(auto node : explored) {
-			if(node.id == current->prev) {
-				current = &node;
+		// NOTE: Possible optimization - we can throw out nodes on the "same" level (with the same parent), which decreases the amount
+		// of nodes we have to search through. This is a computational benefit, memory usage won't be helped though.
+		for(auto& node : explored) {
+			if(node.id == current->prev.value()) {
+				current = &node; // SAFETY: We are taking an address to a node in explored, it cannot move now (set can not be mutated).
+				found = true;
+				break;
 			}
+		}
+
+		if(!found) {
+			std::cout << "We cannot find parent! this should not happen!" << std::endl;
+			return {};
 		}
 	}
 
@@ -88,9 +100,7 @@ std::vector<SearchAction> construct_solution(
 }
 
 std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState &init_state) {
-	// NOTE: Tráví to brutálně moc času hledáním v EXPLORED
-	// - Měl bych použít hešování
-	// - Zjistit, jestli se položky v hešovací tabulce hýbají (a ukazatele na ně se tudíž nedají použít) - ANO, hýbou se, když se při vkládání překročí určitá mez, nelze použít ukazatele
+	constexpr bool log = true; // Set to true for logging
 
 	std::deque<SearchNode> frontier;
 	std::unordered_set<SearchNode, SearchNodeHasher> explored;
@@ -101,24 +111,30 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState &init_stat
 
 	frontier.push_front(SearchNode {id++, std::nullopt, init_state, std::nullopt});
 
+	if(log) {
+		std::cout << "Starting BFS" << std::endl;
+	}
+	
 	while(true) {
 		if(frontier.empty()) {
-			std::cout << "BFS found empty FRONTIER, this should never happen";
-			return {};
-		} else if (id > 1000) {
-			std::cout << "Too long :(";
+			std::cout << "BFS found empty FRONTIER, this should never happen" << std::endl;
 			return {};
 		}
 
-		SearchNode& work_node = frontier.front(); // SAFETY: We checked for emptyness, this is safe
+		SearchNode work_node = frontier.front(); // SAFETY: We checked for emptyness, this is safe
 		SearchState& work_state = work_node.state;
 
 		if(explored.find(work_node) != explored.end()) {
 			// If we already found this state, we skip it
+			frontier.pop_front();
 			continue;
 		} else if(work_state.isFinal()) {
 			// If node is final, construct the solution and terminate
 			// We are looking for states with specific IDs in explored set.
+			if(log) {
+				float mem = getCurrentRSS() / 1048576.0;
+				std::cout << "Solution found! Looking for solution in explored set with " << explored.size() << " states. Used memory: " << mem << "MiB" << std::endl;
+			}
 			return construct_solution(work_node, explored);
 		} else {
 			// Unpack working state, generate new states, add them to the frontier
