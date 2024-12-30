@@ -9,7 +9,7 @@
 #include <optional>
 #include <algorithm>
 
-constexpr bool log_enable = true; // Set to true for logging
+constexpr bool LOG = true; // Set to true for logging
 
 // Wrapper over game state to help keep track of relationship between parent state and child state.
 // Used for searching back through the search space when final state is found.
@@ -112,7 +112,7 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState &init_stat
 
 	frontier.push_front(SearchNode {id++, std::nullopt, init_state, std::nullopt});
 
-	if(log_enable) {
+	if(LOG) {
 		std::cout << "Starting BFS" << std::endl;
 	}
 	
@@ -132,7 +132,7 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState &init_stat
 		} else if(work_state.isFinal()) {
 			// If node is final, construct the solution and terminate
 			// We are looking for states with specific IDs in explored set.
-			if(log_enable) {
+			if(LOG) {
 				float mem = getCurrentRSS() / 1048576.0;
 				std::cout << "Solution found! Looking for solution in explored set with " << explored.size() << " states. Used memory: " << mem << "MiB" << std::endl;
 			}
@@ -172,7 +172,7 @@ std::optional<std::vector<SearchAction>> dfs_solve_inner(
 		if(new_state.isFinal()) {
 			// We found final state, so we start constructing back the solution
 
-			if(log_enable) {
+			if(LOG) {
 				std::cout << "Solution found at depth remaining: " << depth_remaining - 1 << ", propagating backwards now" << std::endl;
 			}
 
@@ -193,7 +193,7 @@ std::optional<std::vector<SearchAction>> dfs_solve_inner(
 
 std::vector<SearchAction> DepthFirstSearch::solve(const SearchState &init_state) {
 
-	if(log_enable) {
+	if(LOG) {
 		std::cout << "Starting DFS with depth limit: " << this->depth_limit_ << std::endl;
 	}
 	
