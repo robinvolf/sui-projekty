@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstdint>
 #include <deque>
+#include <queue>
 #include <unordered_set>
 #include <iostream>
 #include <optional>
@@ -22,6 +23,12 @@ struct SearchNode {
 	SearchState state;
 	// Action in the previous state that "got us here", optional because initial state wasn't "born" from an action
 	std::optional<SearchAction> action;
+	// Cost of the state, used for A* algorithm f(state) = g(state) + h(state)
+	// g(state) ≈ depth, cost from initial to the current
+	// h(state) = heuristic, informed estimate from current to final
+	double cost_estimate;
+	// g(state)
+	double cost_from_initial;
 	
 	bool friend operator==(const SearchNode &a, const SearchNode &b) {
 		return a.state == b.state;
@@ -110,7 +117,7 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState &init_stat
 	// the postfix ++ operator.
 	uint64_t id = 0;
 
-	frontier.push_front(SearchNode {id++, std::nullopt, init_state, std::nullopt});
+	frontier.push_front(SearchNode {id++, std::nullopt, init_state, std::nullopt, 0, 0});
 
 	if(LOG) {
 		std::cout << "Starting BFS" << std::endl;
@@ -142,7 +149,7 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState &init_stat
 			auto actions = work_state.actions();
 			for(SearchAction action : actions) {
 				SearchState new_state = action.execute(work_state);
-				frontier.push_back(SearchNode {id++, work_node.id, new_state, action});
+				frontier.push_back(SearchNode {id++, work_node.id, new_state, action, 0, 0});
 			}
 
 			// Now we move the node from frontier to explored
@@ -217,6 +224,74 @@ double StudentHeuristic::distanceLowerBound(const GameState &state) const {
     return 0;
 }
 
+// Custom comparer of the SearchNode, which compares only costs, used for A* algorithm
+struct SearchNodeComparer {
+    bool operator()(const SearchNode& l, const SearchNode& r) const {
+    	return l.cost_estimate < r.cost_estimate;
+    }
+};
+
 std::vector<SearchAction> AStarSearch::solve(const SearchState &init_state) {
+	// We use a priority queue
+	std::priority_queue<SearchNode, std::deque<SearchNode>, SearchNodeComparer> frontier;
+	std::unordered_set<SearchNode, SearchNodeHasher> explored;
+
+	// ID is assigned based on order of processing, we increment it on every assignment using
+	// the postfix ++ operator.
+	uint64_t id = 0;
+	const AStarHeuristicItf &heuristic = *this->heuristic_.get();
+
+	frontier.push(SearchNode {id++, std::nullopt, init_state, std::nullopt, 0 + compute_heuristic(init_state, heuristic), 0});
+
+	if(LOG) {
+		std::cout << "Starting A*" << std::endl;
+	}
+	
+	while(true) {
+		if(frontier.empty()) {
+			std::cout << "A* found empty FRONTIER, this should never happen" << std::endl;
+			return {};
+		}
+
+		if(LOG) {
+			std::cout << "ID: " << id << ", frontier: " << frontier.size() << ", explored: " << explored.size() << std::endl;
+		}
+	
+		SearchNode work_node = frontier.top(); // SAFETY: We checked for emptyness, this is safe
+		SearchState& work_state = work_node.state;
+
+		if(work_state.isFinal()) {
+			// If node is final, construct the solution and terminate
+			// We are looking for states with specific IDs in explored set.
+			if(LOG) {
+				float mem = getCurrentRSS() / 1048576.0;
+				std::cout << "Solution found! Looking for solution in explored set with " << explored.size() << " states. Used memory: " << mem << "MiB" << std::endl;
+			}
+			return construct_solution(work_node, explored);
+		}
+
+		// If we found this node earlier for a cheaper or equal price, we skip it
+		auto found_node = explored.find(work_node);
+		if(found_node != explored.end()
+			&& found_node->cost_from_initial <= work_node.cost_from_initial
+		) {
+			frontier.pop();
+			continue;
+		}
+		
+		// Unpack working state, generate new states, add them to the frontier
+		auto actions = work_state.actions();
+		for(SearchAction action : actions) {
+			SearchState new_state = action.execute(work_state);
+
+			double path_cost = work_node.cost_from_initial + 1;
+			frontier.push(SearchNode {id++, work_node.id, new_state, action, path_cost + compute_heuristic(new_state, heuristic), path_cost});
+		}
+
+		// Now we move the node from frontier to explored
+		frontier.pop(); // SAFETY: front is work_node, so there is a front, popping is safe.
+		explored.insert(work_node);
+	}
+
 	return {};
 }

@@ -2,6 +2,11 @@
 AI-prepared implementation of [FreeCell](https://en.wikipedia.org/wiki/FreeCell).
 It serves as a basis for student homework in Artificial Intelligence and Machine Learning [course at FIT BUT](https://www.fit.vut.cz/study/course/SUI/.en).
 
+# TODO:
+- [ ] Debug A* heuristic, it should mimic BFS with student heuristic
+- [ ] Add memory limit checks into BFS and A*
+- [ ] Maybe more optimizations for speed in BFS/A*?
+
 ## Compilation
 Simply run `make`.
 Requires C++17-able compiler.
