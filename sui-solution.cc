@@ -1,12 +1,15 @@
 #include "search-interface.h"
 #include "search-strategies.h"
 #include "memusage.h"
+#include <cassert>
 #include <cstdint>
 #include <deque>
 #include <unordered_set>
 #include <iostream>
 #include <optional>
 #include <algorithm>
+
+constexpr bool log_enable = true; // Set to true for logging
 
 // Wrapper over game state to help keep track of relationship between parent state and child state.
 // Used for searching back through the search space when final state is found.
@@ -100,8 +103,6 @@ std::vector<SearchAction> construct_solution(
 }
 
 std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState &init_state) {
-	constexpr bool log = true; // Set to true for logging
-
 	std::deque<SearchNode> frontier;
 	std::unordered_set<SearchNode, SearchNodeHasher> explored;
 
@@ -111,7 +112,7 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState &init_stat
 
 	frontier.push_front(SearchNode {id++, std::nullopt, init_state, std::nullopt});
 
-	if(log) {
+	if(log_enable) {
 		std::cout << "Starting BFS" << std::endl;
 	}
 	
@@ -131,7 +132,7 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState &init_stat
 		} else if(work_state.isFinal()) {
 			// If node is final, construct the solution and terminate
 			// We are looking for states with specific IDs in explored set.
-			if(log) {
+			if(log_enable) {
 				float mem = getCurrentRSS() / 1048576.0;
 				std::cout << "Solution found! Looking for solution in explored set with " << explored.size() << " states. Used memory: " << mem << "MiB" << std::endl;
 			}
@@ -153,8 +154,63 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState &init_stat
 	return {};
 }
 
+// Wrapper over DFS, we need this so we can modify the function signature of the function which
+// recursively calls itself and performs DFS.
+std::optional<std::vector<SearchAction>> dfs_solve_inner(
+	const SearchState &current_state,
+	int depth_remaining
+) {
+	// If we went past the depth limit, do not look further
+	if(depth_remaining == 0) {
+		return std::nullopt;
+	}
+	
+	std::vector<SearchAction> actions = current_state.actions();
+
+	for(SearchAction action : actions) {
+		SearchState new_state = action.execute(current_state);
+		if(new_state.isFinal()) {
+			// We found final state, so we start constructing back the solution
+
+			if(log_enable) {
+				std::cout << "Solution found at depth remaining: " << depth_remaining - 1 << ", propagating backwards now" << std::endl;
+			}
+
+			return std::optional<std::vector<SearchAction>>({ action });
+		} else {
+			// If we found a solution in a child node, we proapgate it
+			std::optional<std::vector<SearchAction>> possible_solution = dfs_solve_inner(new_state, depth_remaining - 1);
+			if(possible_solution.has_value()) {
+				possible_solution.value().push_back(action); // SAFETY: We checked for existence of value in if condition
+				return possible_solution;
+			}
+		}
+	}
+
+	// If we didn't find a solution in a subtree, return nothing
+	return std::nullopt;
+}
+
 std::vector<SearchAction> DepthFirstSearch::solve(const SearchState &init_state) {
-	return {};
+
+	if(log_enable) {
+		std::cout << "Starting DFS with depth limit: " << this->depth_limit_ << std::endl;
+	}
+	
+	std::optional<std::vector<SearchAction>> possible_solution = dfs_solve_inner(init_state, this->depth_limit_);
+
+	if(possible_solution.has_value()) {
+		// SAFETY: Now we now, possible solution has a value, accessing it is safe
+		assert(possible_solution.value().size() <= static_cast<size_t>(this->depth_limit_));
+
+		// We have to reverse the solution, because it was constructed from final state to initial state
+		// we want it from initial to final
+		reverse(possible_solution.value().begin(), possible_solution.value().end());
+		
+		return possible_solution.value();
+	} else {
+		return {};
+	}
 }
 
 double StudentHeuristic::distanceLowerBound(const GameState &state) const {
