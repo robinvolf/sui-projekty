@@ -225,9 +225,12 @@ double StudentHeuristic::distanceLowerBound(const GameState &state) const {
 }
 
 // Custom comparer of the SearchNode, which compares only costs, used for A* algorithm
+//
+// It outputs `true` if the first element is greater than the second, this way the priority
+// queue puts lowest cost elements first.
 struct SearchNodeComparer {
     bool operator()(const SearchNode& l, const SearchNode& r) const {
-    	return l.cost_estimate < r.cost_estimate;
+    	return l.cost_estimate > r.cost_estimate;
     }
 };
 
@@ -253,12 +256,12 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState &init_state) {
 			return {};
 		}
 
-		if(LOG) {
-			std::cout << "ID: " << id << ", frontier: " << frontier.size() << ", explored: " << explored.size() << std::endl;
-		}
-	
 		SearchNode work_node = frontier.top(); // SAFETY: We checked for emptyness, this is safe
 		SearchState& work_state = work_node.state;
+
+		if(LOG) {
+			std::cout << "Picked node " << work_node.id << ", with path cost: " << work_node.cost_from_initial << " and estimated cost: " << work_node.cost_estimate << std::endl;
+		}
 
 		if(work_state.isFinal()) {
 			// If node is final, construct the solution and terminate
