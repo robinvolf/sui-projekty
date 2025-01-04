@@ -11,6 +11,10 @@
 #include <algorithm>
 
 constexpr bool LOG = true; // Set to true for logging
+constexpr float BYTES_IN_MIB = 1048576.0;
+// How close (in MiB) can the algorithm get to its memory limit before it
+// gives up and return an empty solution
+constexpr float LIMIT_OFFSET_MIB = 10;
 
 // Wrapper over game state to help keep track of relationship between parent state and child state.
 // Used for searching back through the search space when final state is found.
@@ -120,12 +124,18 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState &init_stat
 	frontier.push_front(SearchNode {id++, std::nullopt, init_state, std::nullopt, 0, 0});
 
 	if(LOG) {
-		std::cout << "Starting BFS" << std::endl;
+		std::cout << "Starting BFS with memory limit: " << this->mem_limit_ / BYTES_IN_MIB << " MiB" << std::endl;
 	}
 	
 	while(true) {
 		if(frontier.empty()) {
 			std::cout << "BFS found empty FRONTIER, this should never happen" << std::endl;
+			return {};
+		}
+
+		// If we got to close (< 50 MiB away) from the memory limit, we should terminate and return empty solution
+		if(this->mem_limit_ - getCurrentRSS() < LIMIT_OFFSET_MIB * BYTES_IN_MIB) {
+			if(LOG) std::cout << "Too close to memory limit, terminating search with " << getCurrentRSS() / BYTES_IN_MIB << "MiB of memory used" << std::endl;
 			return {};
 		}
 
@@ -140,7 +150,7 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState &init_stat
 			// If node is final, construct the solution and terminate
 			// We are looking for states with specific IDs in explored set.
 			if(LOG) {
-				float mem = getCurrentRSS() / 1048576.0;
+				float mem = getCurrentRSS() / BYTES_IN_MIB;
 				std::cout << "Solution found! Looking for solution in explored set with " << explored.size() << " states. Used memory: " << mem << "MiB" << std::endl;
 			}
 			return construct_solution(work_node, explored);
@@ -207,7 +217,7 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState &init_state)
 	std::optional<std::vector<SearchAction>> possible_solution = dfs_solve_inner(init_state, this->depth_limit_);
 
 	if(possible_solution.has_value()) {
-		// SAFETY: Now we now, possible solution has a value, accessing it is safe
+		// SAFETY: Now we know, possible solution has a value, accessing it is safe
 		assert(possible_solution.value().size() <= static_cast<size_t>(this->depth_limit_));
 
 		// We have to reverse the solution, because it was constructed from final state to initial state
@@ -247,12 +257,20 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState &init_state) {
 	frontier.push(SearchNode {id++, std::nullopt, init_state, std::nullopt, 0 + compute_heuristic(init_state, heuristic), 0});
 
 	if(LOG) {
-		std::cout << "Starting A*" << std::endl;
+		std::cout << "Starting A* with memory limit: " << this->mem_limit_ / BYTES_IN_MIB << " MiB" << std::endl;
 	}
 	
 	while(true) {
 		if(frontier.empty()) {
 			std::cout << "A* found empty FRONTIER, this should never happen" << std::endl;
+			return {};
+		}
+
+		// If we got to close (< 50 MiB away) from the memory limit, we should terminate and return empty solution
+		if(getCurrentRSS() > this->mem_limit_ ||
+		   (this->mem_limit_ - getCurrentRSS()) < LIMIT_OFFSET_MIB * BYTES_IN_MIB
+		) {
+			if(LOG) std::cout << "Too close to memory limit, terminating search with " << getCurrentRSS() / BYTES_IN_MIB << "MiB of memory used" << std::endl;
 			return {};
 		}
 
@@ -267,7 +285,7 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState &init_state) {
 			// If node is final, construct the solution and terminate
 			// We are looking for states with specific IDs in explored set.
 			if(LOG) {
-				float mem = getCurrentRSS() / 1048576.0;
+				float mem = getCurrentRSS() / BYTES_IN_MIB;
 				std::cout << "Solution found! Looking for solution in explored set with " << explored.size() << " states. Used memory: " << mem << "MiB" << std::endl;
 			}
 			return construct_solution(work_node, explored);
