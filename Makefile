@@ -1,8 +1,5 @@
 CXXFLAGS=-std=c++17 -Wall -Wextra -pedantic -O2
 
-# CXXFLAGS+= -g -fsanitize=address
-# LDFLAGS+= -fsanitize=address
-
 BUILD_DIR=./build
 DEP_DIR=./dep
 
@@ -12,7 +9,7 @@ OBJ = $(SOURCES:%.cc=$(BUILD_DIR)/%.o)
 all: $(BUILD_DIR) $(DEP_DIR) fc-sui
 
 fc-sui: $(BUILD_DIR)/fc-sui.o $(OBJ)
-	$(CXX) $^ -lpthread $(LDFLAGS) -o $@
+	$(CXX) $^ -lpthread -o $@
 
 -include $(wildcard $(DEP_DIR)/*.d)
 

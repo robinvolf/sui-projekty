@@ -10,7 +10,7 @@
 #include <optional>
 #include <algorithm>
 
-constexpr bool LOG = true; // Set to true for logging
+constexpr bool LOG = false; // Set to true for logging
 constexpr float BYTES_IN_MIB = 1048576.0;
 // How close (in MiB) can the algorithm get to its memory limit before it
 // gives up and return an empty solution
